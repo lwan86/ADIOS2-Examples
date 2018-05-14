@@ -1,0 +1,7 @@
+
+mpirun -n <# of proc> ./miniapp <adios2 config file> <output file> <type of var (float or int)> <total # of vars> <size of each var> <time between two consecutive writes> <total # of writes>
+
+
+Example:
+
+mpirun -n 10 ./miniapp bpfile.xml out float 10000 10 0.1 250
