@@ -31,6 +31,7 @@ void MiniApp::run(const Settings &s, MPI_Comm comm)
 			
 			if (!s.rank)
 				{
+				        std::cout << "step: " << t << std::endl;
 					std::cout << "sleep: " << sec << " seconds " << msec << " milliseconds" << std::endl;
 				}
 			//std::this_thread::sleep_for(std::chrono::seconds(sec));
