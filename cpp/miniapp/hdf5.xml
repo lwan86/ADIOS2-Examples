@@ -1,14 +1,12 @@
 <?xml version="1.0"?>
 <!-- Config XML file fo the
-     - heatSimulation
-     - heatAnalysis
-     - heatVisualization
+     - miniapp
      executables -->
 
 <adios-config>
 
     <!--===========================================
-           Configuration for the Simulation Output 
+           Configuration for the MiniApp Output 
         ===========================================-->
 
     <io name="MiniAppOutput">

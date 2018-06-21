@@ -11,7 +11,7 @@
 
     <io name="MiniAppOutput">
       <engine type="ADIOS1">
-		<parameter key="FlushStepsCount" value="1"/>
+		<parameter key="FlushStepsCount" value="251"/>
         </engine>
 
         <!-- ADIOS 1.x had no default output transport
