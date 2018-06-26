@@ -97,14 +97,14 @@ void Settings::ParseVarsParameterFile(std::string varsfilename, std::unordered_m
     }
 }
 
-Settings::Settings(int argc, char *argv[], int rank, int nproc)
+Settings::Settings(int argc, char *argv[], int rank, int nproc) : rank{rank}
 {
     if (argc < 3)
     {
         throw std::invalid_argument("Not enough arguments");
     }
     this->nproc = (unsigned int)nproc;
-    this->rank = rank;
+    //this->rank = rank;
     configfile = argv[1];
     outputfile = argv[2];
     

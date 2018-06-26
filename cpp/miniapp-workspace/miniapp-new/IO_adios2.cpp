@@ -206,9 +206,13 @@ IO::IO(const Settings &s, MPI_Comm comm)
                 std::cout << std::endl;
             }
             */
-            
-            //std::cout << s.rank << ": " << std::endl;
+            //int r;
+            //MPI_Comm_rank(comm, &r);
+            //std::cout << "s.rank: " << s.rank << ", " << "mpi rank: " << r << proc_per_dim[0] << std::endl;
+                
+     
             unsigned int prev_div;
+            int flag = 0;
             for (unsigned int j = 0; j < proc_per_dim.size(); ++j)
             {
                 if (j == 0) 
@@ -222,7 +226,13 @@ IO::IO(const Settings &s, MPI_Comm comm)
                     prev_div = prev_div/proc_per_dim[j];
                 }
                 //std::cout << proc_pos[j] << " ";            
-                
+                if (proc_pos[j]*size_per_proc_per_dim[j] >= var_dim_size[j])
+                {
+                    //std::cout << "this dim has been covered, no more proc is needed!" << std::endl;
+                    flag = -1;
+                    break;
+                }
+
                 global_offset[j] = proc_pos[j]*size_per_proc_per_dim[j];
                 //std::cout << global_offset[j] << " ";
 
@@ -238,7 +248,11 @@ IO::IO(const Settings &s, MPI_Comm comm)
 
             }
             //std::cout << std::endl;
-            
+            if (flag < 0)
+            {
+                continue;
+            } 
+
             std::vector<size_t> g_dim_size;
             std::vector<size_t> g_offset;
             std::vector<size_t> l_size;
@@ -252,14 +266,15 @@ IO::IO(const Settings &s, MPI_Comm comm)
             
             bpDouble = bpio.DefineVariable<double>(var_type+std::to_string(i), g_dim_size, g_offset, l_size, adios2::ConstantDims);
 
-            std::cout << bpDouble.Name() << "," << s.rank << ": ";
+            //std::cout << bpDouble.Name() << "," << s.rank << ": ";
+            /*
             for (unsigned int m = 0; m < var_dims; m++)
             {
 
                 std::cout << bpDouble.Count()[m] << " ";
             }
             std::cout << std::endl;
-
+            */
             //bpDouble = bpio.DefineVariable<double>(var_type+std::to_string(i), var_dim_size, global_offset, local_size, adios2::ConstantDims);
             //bpDouble = bpio.DefineVariable<double>(var_type+std::to_string(i), {var_dim_size[0],var_dim_size[1],var_dim_size[2]}, {global_offset[0],global_offset[1],global_offset[2]}, {local_size[0],local_size[1],local_size[2]}, adios2::ConstantDims);
             //bpDouble = bpio.DefineVariable<double>(var_type+std::to_string(i), var_dim_size, global_offset, local_size);
@@ -285,7 +300,7 @@ IO::IO(const Settings &s, MPI_Comm comm)
 
 
     bpWriter = bpio.Open(m_outputfilename, adios2::Mode::Write, comm);
-    bpWriter.FixedSchedule();
+    //bpWriter.FixedSchedule();
 }
 
 
@@ -333,18 +348,18 @@ void IO::write(int step, const Settings &s, MPI_Comm comm)
         max = *std::max_element(myDouble.begin(), myDouble.end());
         //std::cout << var_name << "," << s.rank << ": " << allVars[i].Count()[0] << " " << allVars[i].Count()[1] << " " << allVars[i].Count()[2] << std::endl; 
         
-        std::cout << var_name << "," << s.rank << ": ";
-        for (unsigned int m = 0; m < allVars[i].Count().size(); m++)
-        {
-            std::cout << allVars[i].Count()[m] << " ";
-        }
-        std::cout << std::endl;
-        std::cout << var_name << "," << s.rank << ": min: " << min << ", max: " << max << std::endl;
-        for (unsigned int k = 0; k < myDouble.size(); k++)
-        {
-            std::cout << myDouble[k] << " ";
-        }
-        std::cout << std::endl;
+        //std::cout << var_name << "," << s.rank << ": ";
+        //for (unsigned int m = 0; m < allVars[i].Count().size(); m++)
+        //{
+        //    std::cout << allVars[i].Count()[m] << " ";
+        //}
+        //std::cout << std::endl;
+        //std::cout << var_name << "," << s.rank << ": min: " << min << ", max: " << max << std::endl;
+        //for (unsigned int k = 0; k < myDouble.size(); k++)
+        //{
+        //    std::cout << myDouble[k] << " ";
+        //}
+        //std::cout << std::endl;
         bpWriter.Put<double>(allVars[i], myDouble.data());
     }
     bpWriter.EndStep();
