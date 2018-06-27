@@ -14,7 +14,7 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
-
+#include <iterator>
 
 
 #include "Settings.h"
