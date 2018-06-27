@@ -82,7 +82,7 @@ IO::IO(const Settings &s, MPI_Comm comm)
     ad = adios2::ADIOS(s.configfile, comm, adios2::DebugON);
     
     //io = &ad->DeclareIO("MiniAppOutput");
-    adios2::IO bpio = ad.DeclareIO("writer");
+    adios2::IO bpio = ad.DeclareIO("MiniAppOutput");
     
     if (!bpio.InConfigFile())
     {
