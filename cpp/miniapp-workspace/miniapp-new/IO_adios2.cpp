@@ -218,7 +218,7 @@ IO::IO(const Settings &s, MPI_Comm comm)
             //MPI_Comm_rank(comm, &r);
             //std::cout << "s.rank: " << s.rank << ", " << "mpi rank: " << r << proc_per_dim[0] << std::endl;
                 
-     
+            std::cout << "s.rank: " << s.rank << ", ";
             unsigned int prev_div;
             int flag = 0;
             for (unsigned int j = 0; j < proc_per_dim.size(); ++j)
@@ -233,7 +233,7 @@ IO::IO(const Settings &s, MPI_Comm comm)
                     proc_pos[j] = prev_div%proc_per_dim[j];
                     prev_div = prev_div/proc_per_dim[j];
                 }
-                //std::cout << proc_pos[j] << " ";            
+                std::cout << proc_pos[j] << " ";            
                 if (proc_pos[j]*size_per_proc_per_dim[j] >= var_dim_size[j])
                 {
                     std::cout << "this dim has been covered, no more proc is needed!" << std::endl;
@@ -242,7 +242,7 @@ IO::IO(const Settings &s, MPI_Comm comm)
                 }
 
                 global_offset[j] = proc_pos[j]*size_per_proc_per_dim[j];
-                //std::cout << global_offset[j] << " ";
+                std::cout << global_offset[j] << " ";
 
                 if (global_offset[j]+size_per_proc_per_dim[j] <= var_dim_size[j]) 
                 {
@@ -252,10 +252,10 @@ IO::IO(const Settings &s, MPI_Comm comm)
                 {
                     local_size[j] = var_dim_size[j]-global_offset[j];
                 }
-                //std::cout << local_size[j] << " ";
+                std::cout << local_size[j] << " ";
 
             }
-            //std::cout << std::endl;
+            std::cout << std::endl;
             if (flag < 0)
             {
                 std::cout << "jump to another block!" << std::endl;
@@ -374,12 +374,12 @@ void IO::write(int step, const Settings &s, MPI_Comm comm)
         unsigned int myDoubleSize = all_vars_size[var_name+"-"+std::to_string(s.rank)];
         //std::cout << myDoubleSize << std::endl;
         std::vector<double> myDouble(myDoubleSize, 0);
-        generate_fake_var2(myDoubleSize, myDouble);
+        //generate_fake_var2(myDoubleSize, myDouble);
         //double min, max;
         //min = *std::min_element(myDouble.begin(), myDouble.end());
         //max = *std::max_element(myDouble.begin(), myDouble.end());
 
-        std::cout << var_name << "," << s.rank << ": " << allVars[i].Shape()[0] << " " << allVars[i].Shape()[1] << " " << allVars[i].Shape()[2] << ", " 
+        std::cout << var_name << "," << s.rank << ": " << allVars[i].Shape().size() << " " << allVars[i].Shape()[0] << " " << allVars[i].Shape()[1] << " " << allVars[i].Shape()[2] << ", " 
             << allVars[i].Start()[0] << " " << allVars[i].Start()[1] << " " << allVars[i].Start()[2] << ", " 
             << allVars[i].Count()[0] << " " << allVars[i].Count()[1] << " " << allVars[i].Count()[2] << std::endl;
 
@@ -396,7 +396,7 @@ void IO::write(int step, const Settings &s, MPI_Comm comm)
         //    std::cout << myDouble[k] << " ";
         //}
         //std::cout << std::endl;
-        Writer.Put<double>(allVars[i], myDouble.data());
+        Writer.Put<double>(allVars[i], myDouble.data(), adios2::Mode::Sync);
     }
     //std::cout << "line 397, " << "s.rank: " << s.rank << ", " << "mpi rank: " << r << std::endl;
     Writer.EndStep();
