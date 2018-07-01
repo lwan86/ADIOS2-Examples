@@ -357,7 +357,7 @@ void IO::write(int step, const Settings &s, MPI_Comm comm)
     for (unsigned int i = 0; i < allVars.size(); i++)
     {
         std::string var_name = allVars[i].Name();
-        std::unordered_map<std::string, unsigned int>::const_iterator got = all_vars_size.find(var_name+"-"+std::to_string(s.rank));
+        //std::unordered_map<std::string, unsigned int>::const_iterator got = all_vars_size.find(var_name+"-"+std::to_string(s.rank));
 
         /*
         if (got == all_vars_size.end())
