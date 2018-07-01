@@ -19,10 +19,10 @@
 //adios2::ADIOS *ad = nullptr;
 adios2::ADIOS ad;
 //adios2::Engine *writer = nullptr;
-adios2::Engine bpWriter;
+adios2::Engine Writer;
 //adios2::IO *io = nullptr;
 std::vector<adios2::Variable<double>> allVars;
-adios2::Variable<double> bpDouble;
+adios2::Variable<double> adiosVarDouble;
 
 std::unordered_map<std::string, unsigned int> all_vars_size;
 //adios2::Variable<float> &bpFloats;
@@ -37,6 +37,14 @@ static std::vector<double> generate_fake_var(unsigned int length)
         var.push_back(double(i));
     }
     return var;
+}
+
+static void generate_fake_var2(unsigned int length, std::vector<double> &var)
+{
+    for (unsigned int i = 0; i < length; i++)
+    {
+        var[i] = double(i);
+    }
 }
 
 static std::vector<unsigned int> prime_factors(unsigned int n)
@@ -82,18 +90,18 @@ IO::IO(const Settings &s, MPI_Comm comm)
     ad = adios2::ADIOS(s.configfile, comm, adios2::DebugON);
     
     //io = &ad->DeclareIO("MiniAppOutput");
-    adios2::IO bpio = ad.DeclareIO("MiniAppOutput");
+    adios2::IO io = ad.DeclareIO("MiniAppOutput");
     
-    if (!bpio.InConfigFile())
+    if (!io.InConfigFile())
     {
         // if not defined by user, we can change the default settings
         // BPFile is the default writer
-        bpio.SetEngine("BPFile");
-        bpio.SetParameters({{"num_threads", "1"}});
+        io.SetEngine("BPFile");
+        io.SetParameters({{"num_threads", "1"}});
 
         // ISO-POSIX file output is the default transport (called "File")
         // Passing parameters to the transport
-        bpio.AddTransport("File", {{"Library", "POSIX"}});
+        io.AddTransport("File", {{"Library", "POSIX"}});
     }
 
     // define T as 2D global array
@@ -228,7 +236,7 @@ IO::IO(const Settings &s, MPI_Comm comm)
                 //std::cout << proc_pos[j] << " ";            
                 if (proc_pos[j]*size_per_proc_per_dim[j] >= var_dim_size[j])
                 {
-                    //std::cout << "this dim has been covered, no more proc is needed!" << std::endl;
+                    std::cout << "this dim has been covered, no more proc is needed!" << std::endl;
                     flag = -1;
                     break;
                 }
@@ -250,6 +258,7 @@ IO::IO(const Settings &s, MPI_Comm comm)
             //std::cout << std::endl;
             if (flag < 0)
             {
+                std::cout << "jump to another block!" << std::endl;
                 continue;
             } 
 
@@ -264,7 +273,7 @@ IO::IO(const Settings &s, MPI_Comm comm)
                 l_size.push_back(local_size[m]);
             }
             
-            bpDouble = bpio.DefineVariable<double>(var_type+std::to_string(i), g_dim_size, g_offset, l_size, adios2::ConstantDims);
+            adiosVarDouble = io.DefineVariable<double>(var_type+std::to_string(i), g_dim_size, g_offset, l_size, adios2::ConstantDims);
 
             //std::cout << bpDouble.Name() << "," << s.rank << ": ";
             /*
@@ -279,7 +288,7 @@ IO::IO(const Settings &s, MPI_Comm comm)
             //bpDouble = bpio.DefineVariable<double>(var_type+std::to_string(i), {var_dim_size[0],var_dim_size[1],var_dim_size[2]}, {global_offset[0],global_offset[1],global_offset[2]}, {local_size[0],local_size[1],local_size[2]}, adios2::ConstantDims);
             //bpDouble = bpio.DefineVariable<double>(var_type+std::to_string(i), var_dim_size, global_offset, local_size);
 
-            allVars.push_back(bpDouble);
+            allVars.push_back(adiosVarDouble);
 
             unsigned int var_local_size = 1;
             for (unsigned int l = 0; l < local_size.size(); l++)
@@ -298,8 +307,9 @@ IO::IO(const Settings &s, MPI_Comm comm)
     //    std::cout << it.first << ", " << it.second[0] << ", " << it.second[1] << ", " << it.second[2] << std::endl;
     //}
 
-
-    bpWriter = bpio.Open(m_outputfilename, adios2::Mode::Write, comm);
+    Writer = io.Open(m_outputfilename, adios2::Mode::Write, comm);
+    
+    
     //bpWriter.FixedSchedule();
 }
 
@@ -307,14 +317,14 @@ IO::IO(const Settings &s, MPI_Comm comm)
 
 IO::~IO()
 {
-    bpWriter.Close();
+    Writer.Close();
     //delete ad;
 }
 
 void IO::write(int step, const Settings &s, MPI_Comm comm)
 {
     //std::vector<std::vector<double>> vars_data;
-    std::vector<double> myDouble;
+    //std::vector<double> myDouble;
     //std::vector<float> tmp;
     /*
     for (unsigned int i = 0; i < s.var_num; i++)
@@ -324,8 +334,12 @@ void IO::write(int step, const Settings &s, MPI_Comm comm)
     }
     */
 
-	double timeStart = MPI_Wtime();
-    bpWriter.BeginStep();
+    //int r;
+    //MPI_Comm_rank(comm, &r);
+    //std::cout << "s.rank: " << s.rank << ", " << "mpi rank: " << r << std::endl;
+    double timeStart = MPI_Wtime(); 
+
+    Writer.BeginStep();
     // using PutDeferred() you promise the pointer to the data will be intact
     // until the end of the output step.
     // We need to have the vector object here not to destruct here until the end
@@ -339,14 +353,36 @@ void IO::write(int step, const Settings &s, MPI_Comm comm)
     */
     //std::vector<double> v = ht.data_noghost();
     //writer->PutDeferred<double>(*varT, v.data());
+    //std::cout << "line 355, " << "s.rank: " << s.rank << ", " << "mpi rank: " << r << ", allVars size: " << allVars.size() << std::endl;
     for (unsigned int i = 0; i < allVars.size(); i++)
     {
         std::string var_name = allVars[i].Name();
-        myDouble = generate_fake_var(all_vars_size[var_name+"-"+std::to_string(s.rank)]);
-        double min, max;
-        min = *std::min_element(myDouble.begin(), myDouble.end());
-        max = *std::max_element(myDouble.begin(), myDouble.end());
-        //std::cout << var_name << "," << s.rank << ": " << allVars[i].Count()[0] << " " << allVars[i].Count()[1] << " " << allVars[i].Count()[2] << std::endl; 
+        std::unordered_map<std::string, unsigned int>::const_iterator got = all_vars_size.find(var_name+"-"+std::to_string(s.rank));
+
+        /*
+        if (got == all_vars_size.end())
+        {
+            std::cout << "rank " << s.rank << "not used!" << std::endl;
+            continue;
+        }
+        else
+        {
+            std::cout << got->first << " is " << got->second << std::endl;
+        }
+        */
+        //myDouble = generate_fake_var(all_vars_size[var_name+"-"+std::to_string(s.rank)]);
+        unsigned int myDoubleSize = all_vars_size[var_name+"-"+std::to_string(s.rank)];
+        //std::cout << myDoubleSize << std::endl;
+        std::vector<double> myDouble(myDoubleSize, 0);
+        generate_fake_var2(myDoubleSize, myDouble);
+        //double min, max;
+        //min = *std::min_element(myDouble.begin(), myDouble.end());
+        //max = *std::max_element(myDouble.begin(), myDouble.end());
+
+        std::cout << var_name << "," << s.rank << ": " << allVars[i].Shape()[0] << " " << allVars[i].Shape()[1] << " " << allVars[i].Shape()[2] << ", " 
+            << allVars[i].Start()[0] << " " << allVars[i].Start()[1] << " " << allVars[i].Start()[2] << ", " 
+            << allVars[i].Count()[0] << " " << allVars[i].Count()[1] << " " << allVars[i].Count()[2] << std::endl;
+
         
         //std::cout << var_name << "," << s.rank << ": ";
         //for (unsigned int m = 0; m < allVars[i].Count().size(); m++)
@@ -360,10 +396,13 @@ void IO::write(int step, const Settings &s, MPI_Comm comm)
         //    std::cout << myDouble[k] << " ";
         //}
         //std::cout << std::endl;
-        bpWriter.Put<double>(allVars[i], myDouble.data());
+        Writer.Put<double>(allVars[i], myDouble.data());
     }
-    bpWriter.EndStep();
-    double timeEnd = MPI_Wtime();	
+    //std::cout << "line 397, " << "s.rank: " << s.rank << ", " << "mpi rank: " << r << std::endl;
+    Writer.EndStep();
+
+    double timeEnd = MPI_Wtime();
+    //std::cout << "line 400, " << "s.rank: " << s.rank << ", " << "mpi rank: " << r << std::endl;
 	if (s.rank == 0)
 		std::cout << "I/O time = " << timeEnd - timeStart << std::endl;
 }
