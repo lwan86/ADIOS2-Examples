@@ -1,0 +1,12 @@
+
+mpirun -n <# of processes> ./miniapp <adios config xml file> <outpath> <input variables config> <write frequency> <steps>
+
+e.g.
+mpirun -n 10 ./miniapp bpfile.xml output input_vars 0.1 10 > tmp.log
+
+
+Format of the "input variables config" file:
+<name of variable> <# of variables> <dim> <size of each dim> ...
+A 2 3 52 65 33
+
+Use the "extract_io_time.py" to parse the log file

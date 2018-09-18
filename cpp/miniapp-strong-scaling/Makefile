@@ -27,4 +27,4 @@ miniapp: main.o MiniApp.o IO_adios2.o Settings.o
 	${CXX} ${CXXFLAGS} -o miniapp $^ ${ADIOS_LIB} 
 
 clean:
-	rm -f *.o
+	-rm *.o $(objects) miniapp
