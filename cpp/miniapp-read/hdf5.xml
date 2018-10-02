@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<!-- Config XML file fo the
+     - miniapp
+     executables -->
+
+<adios-config>
+
+    <!--===========================================
+           Configuration for the MiniApp Output 
+        ===========================================-->
+
+    <io name="MiniAppOutput">
+        <engine type="HDF5">
+        </engine>
+    </io>
+
+
+</adios-config>
