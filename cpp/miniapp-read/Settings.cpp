@@ -106,7 +106,7 @@ Settings::Settings(int argc, char *argv[], int rank, int nproc) : rank{rank}
     this->nproc = (unsigned int)nproc;
     //this->rank = rank;
     configfile = argv[1];
-    outputfile = argv[2];
+    inputfile = argv[2];
     
     varsParameterFile = argv[3];
     ParseVarsParameterFile(varsParameterFile, var_type_num, var_type_dims, var_type_dim_size);

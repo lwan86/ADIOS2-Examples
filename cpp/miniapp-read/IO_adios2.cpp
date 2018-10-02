@@ -13,13 +13,14 @@
 #include <string>
 #include <iostream>
 #include <cmath>
+#include <algorithm>
 
 #include <adios2.h>
 
 //adios2::ADIOS *ad = nullptr;
 adios2::ADIOS ad;
 //adios2::Engine *writer = nullptr;
-adios2::Engine Writer;
+adios2::Engine Reader;
 //adios2::IO *io = nullptr;
 std::vector<adios2::Variable<double>> allVars;
 adios2::Variable<double> adiosVarDouble;
@@ -29,6 +30,20 @@ std::unordered_map<std::string, unsigned int> all_vars_size;
 //adios2::Variable<double> *varT = nullptr;
 //adios2::Variable<unsigned int> *varGndx = nullptr;
 
+void print_vector(std::vector<double> v)
+{
+  for (int i=0; i < v.size(); ++i) 
+  {
+      if (i == v.size()-1)
+      {
+	std::cout << v[i] << std::endl;
+      }
+      else 
+      {
+	std::cout << v[i] << ' ';
+      }
+  }
+}
 
 static std::vector<unsigned int> prime_factors(unsigned int n)
 {
@@ -86,7 +101,111 @@ IO::IO(const Settings &s, MPI_Comm comm)
     }
 
     Reader = io.Open(m_inputfilename, adios2::Mode::Read, comm);
-    
+    std::vector<unsigned int> p_factors = prime_factors(s.nproc);
+    for (auto& it : s.var_type_num) 
+    {
+        for (unsigned int i = 0; i < it.second; ++i)
+	{
+          std::string var_type = it.first;
+	  adiosVarDouble = io.InquireVariable<double>(var_type+std::to_string(i));
+	    
+	  unsigned int var_dims = s.var_type_dims.at(var_type);
+	  std::vector<unsigned int> var_dim_size = s.var_type_dim_size.at(var_type);
+	  
+	  std::vector<unsigned int> proc_per_dim;
+
+	  if (var_dims == p_factors.size()) 
+	  {
+	      proc_per_dim = p_factors;
+	  }
+	  else if (var_dims > p_factors.size())
+	  {
+	      proc_per_dim = p_factors;
+	      for (int v = 0; v < var_dims-p_factors.size(); v++)
+	      {
+	          proc_per_dim.push_back(1);
+	      }
+	  }
+	  else
+	  {
+	      unsigned int diff = p_factors.size()-var_dims;
+	      std::sort(p_factors.begin(), p_factors.end());
+	      proc_per_dim = p_factors;
+	      unsigned int prod = 1;
+	      for (int u = 0; u < diff+1; u++) 
+	      {
+	          prod *= proc_per_dim[u];
+	      }
+	      proc_per_dim.erase(proc_per_dim.begin(), proc_per_dim.begin()+diff+1);
+	      proc_per_dim.push_back(prod);
+	  }
+
+	  unsigned int all_dim_size_product = 1;
+	  std::vector<unsigned int> global_offset(var_dims, 0);
+	  std::vector<unsigned int> local_size(var_dims, 0);
+	  std::vector<unsigned int> proc_pos(var_dims, 0);
+	  std::vector<unsigned int> size_per_proc_per_dim(var_dims, 0);
+	  for (unsigned int k = 0; k < var_dims; ++k)
+	  {
+	      size_per_proc_per_dim[k] = std::ceil(double(var_dim_size[k])/double(proc_per_dim[k]));
+	  }
+
+	  unsigned int prev_div;
+	  int flag = 0;
+	  for (unsigned int j = 0; j < proc_per_dim.size(); ++j)
+	  {
+	      if (j == 0) 
+	      {
+	          proc_pos[j] = s.rank%proc_per_dim[j];
+		  prev_div = s.rank/proc_per_dim[j];
+	      }
+	      else
+	      {
+	          proc_pos[j] = prev_div%proc_per_dim[j];
+		  prev_div = prev_div/proc_per_dim[j];
+	      }
+                //std::cout << proc_pos[j] << " ";            
+	      if (proc_pos[j]*size_per_proc_per_dim[j] >= var_dim_size[j])
+	      {
+	          std::cout << "this dim has been covered, no more proc is needed!" << std::endl;
+		  flag = -1;
+		  break;
+	      }
+
+	      global_offset[j] = proc_pos[j]*size_per_proc_per_dim[j];
+
+	      if (global_offset[j]+size_per_proc_per_dim[j] <= var_dim_size[j]) 
+	      {
+	          local_size[j] = size_per_proc_per_dim[j];
+	      }
+	      else
+	      {
+	          local_size[j] = var_dim_size[j]-global_offset[j];
+	      }
+
+	  }
+
+	  if (flag < 0)
+	  {
+	      std::cout << "jump to another block!" << std::endl;
+	      continue;
+	  } 
+
+	  std::vector<size_t> g_dim_size;
+	  std::vector<size_t> g_offset;
+	  std::vector<size_t> l_size;
+	
+	  for (unsigned int m = 0; m < var_dims; m++)
+	  {
+	      g_dim_size.push_back(var_dim_size[m]);
+	      g_offset.push_back(global_offset[m]);
+	      l_size.push_back(local_size[m]);
+	  }
+
+	  adiosVarDouble.SetSelection(adios2::Box<adios2::Dims>(g_offset, l_size));    
+	  allVars.push_back(adiosVarDouble);
+	}
+    }
 }
 
 
@@ -104,113 +223,14 @@ void IO::read(int step, const Settings &s, MPI_Comm comm)
     std::vector<double> myDouble;
     double timeStart = MPI_Wtime(); 
 
-    std::vector<unsigned int> p_factors = prime_factors(s.nproc);
-
     Reader.BeginStep();
 
-    for (auto& it : s.var_type_num) 
+    for (int i = 0; i < allVars.size(); ++i) 
     {
-        for (unsigned int i = 0; i < it.second; ++i)
         {
-            std::string var_type = it.first;
-	    adiosVarDouble = io.InquireVariable<double>(var_type+std::to_string(i));
-	    
-            unsigned int var_dims = s.var_type_dims.at(var_type);
-            std::vector<unsigned int> var_dim_size = s.var_type_dim_size.at(var_type);
-
-            std::vector<unsigned int> proc_per_dim;
-
-            if (var_dims == p_factors.size()) 
-            {
-                proc_per_dim = p_factors;
-            }
-            else if (var_dims > p_factors.size())
-            {
-                proc_per_dim = p_factors;
-                for (int v = 0; v < var_dims-p_factors.size(); v++)
-                {
-                    proc_per_dim.push_back(1);
-                }
-            }
-            else
-            {
-                unsigned int diff = p_factors.size()-var_dims;
-                std::sort(p_factors.begin(), p_factors.end());
-                proc_per_dim = p_factors;
-                unsigned int prod = 1;
-                for (int u = 0; u < diff+1; u++) 
-                {
-
-                    prod *= proc_per_dim[u];
-                }
-                proc_per_dim.erase(proc_per_dim.begin(), proc_per_dim.begin()+diff+1);
-                proc_per_dim.push_back(prod);
-            }
-
-            unsigned int all_dim_size_product = 1;
-            std::vector<unsigned int> global_offset(var_dims, 0);
-            std::vector<unsigned int> local_size(var_dims, 0);
-            std::vector<unsigned int> proc_pos(var_dims, 0);
-            std::vector<unsigned int> size_per_proc_per_dim(var_dims, 0);
-            for (unsigned int k = 0; k < var_dims; ++k)
-            {
-                size_per_proc_per_dim[k] = std::ceil(double(var_dim_size[k])/double(proc_per_dim[k]));
-            }
-
-            unsigned int prev_div;
-            int flag = 0;
-            for (unsigned int j = 0; j < proc_per_dim.size(); ++j)
-            {
-                if (j == 0) 
-                {
-                    proc_pos[j] = s.rank%proc_per_dim[j];
-                    prev_div = s.rank/proc_per_dim[j];
-                }
-                else
-                {
-                    proc_pos[j] = prev_div%proc_per_dim[j];
-                    prev_div = prev_div/proc_per_dim[j];
-                }
-                //std::cout << proc_pos[j] << " ";            
-                if (proc_pos[j]*size_per_proc_per_dim[j] >= var_dim_size[j])
-                {
-                    std::cout << "this dim has been covered, no more proc is needed!" << std::endl;
-                    flag = -1;
-                    break;
-                }
-
-                global_offset[j] = proc_pos[j]*size_per_proc_per_dim[j];
-
-                if (global_offset[j]+size_per_proc_per_dim[j] <= var_dim_size[j]) 
-                {
-                    local_size[j] = size_per_proc_per_dim[j];
-                }
-                else
-                {
-                    local_size[j] = var_dim_size[j]-global_offset[j];
-                }
-
-            }
-
-            if (flag < 0)
-            {
-                std::cout << "jump to another block!" << std::endl;
-                continue;
-            } 
-
-            std::vector<size_t> g_dim_size;
-            std::vector<size_t> g_offset;
-            std::vector<size_t> l_size;
-
-            for (unsigned int m = 0; m < var_dims; m++)
-            {
-                g_dim_size.push_back(var_dim_size[m]);
-                g_offset.push_back(global_offset[m]);
-                l_size.push_back(local_size[m]);
-            }
-
-	    adiosVarDouble.SetSelection(adios2::Box<adios2::Dims>(g_offset, l_size));
-	    Reader.Get<double>(adiosVarDouble, myDouble.data());
+	    Reader.Get<double>(allVars[i], myDouble.data());
+	    std::cout << s.rank << ", " << allVars[i].Name() << ": " << std::endl;
+	    print_vector(myDouble);
 	}
     }
     Reader.EndStep();

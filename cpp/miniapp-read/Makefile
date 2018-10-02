@@ -1,11 +1,12 @@
-ADIOS_DIR=/opt/adios2
+ADIOS_DIR=/ccs/home/lwan86/adios2-bp4/install-dir
 
-CXX=mpic++
+CXX=CC
 CXXFLAGS=-g -std=gnu++11 
 LDFLAGS=-g
 
 override ADIOS_INC=-I${ADIOS_DIR}/include
-override ADIOS_LIB=`${ADIOS_DIR}/bin/adios2-config --libs`
+#override ADIOS_LIB=`${ADIOS_DIR}/bin/adios2-config --libs`
+override ADIOS_LIB=-L${ADIOS_DIR}/lib -ladios2 -L/usr/lib64 -lbz2
 
 default: help
 all: miniapp
